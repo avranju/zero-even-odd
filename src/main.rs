@@ -3,7 +3,7 @@ use std::{
     thread,
 };
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 enum PrintState {
     ZeroOdd,
     ZeroEven,
@@ -50,49 +50,34 @@ impl ZeroEvenOdd {
         }
     }
 
-    fn even(&self) {
+    fn num(&self, cur_state: PrintState, next_state: PrintState) {
         let (mx, cvar) = &*self.print_state;
         let mut state = mx.lock().unwrap();
 
         while *self.current.read().unwrap() < self.n {
-            match *state {
-                PrintState::Even => {
-                    let current = *self.current.read().unwrap();
-                    *self.current.write().unwrap() = current + 1;
-                    print!("{}", current + 1);
-                    *state = PrintState::ZeroOdd;
-                    cvar.notify_all();
-                }
-                _ => {
-                    state = cvar.wait(state).unwrap();
-                }
+            if *state == cur_state {
+                let current = *self.current.read().unwrap();
+                *self.current.write().unwrap() = current + 1;
+                print!("{}", current + 1);
+                *state = next_state;
+                cvar.notify_all();
+            } else {
+                state = cvar.wait(state).unwrap();
             }
         }
     }
 
-    fn odd(&self) {
-        let (mx, cvar) = &*self.print_state;
-        let mut state = mx.lock().unwrap();
+    fn even(&self) {
+        self.num(PrintState::Even, PrintState::ZeroOdd);
+    }
 
-        while *self.current.read().unwrap() < self.n {
-            match *state {
-                PrintState::Odd => {
-                    let current = *self.current.read().unwrap();
-                    *self.current.write().unwrap() = current + 1;
-                    print!("{}", current + 1);
-                    *state = PrintState::ZeroEven;
-                    cvar.notify_all();
-                }
-                _ => {
-                    state = cvar.wait(state).unwrap();
-                }
-            }
-        }
+    fn odd(&self) {
+        self.num(PrintState::Odd, PrintState::ZeroEven);
     }
 }
 
 fn main() {
-    let zeo = ZeroEvenOdd::new(2);
+    let zeo = ZeroEvenOdd::new(6);
 
     let zeo1 = zeo.clone();
     let zt = thread::spawn(move || zeo1.zero());
